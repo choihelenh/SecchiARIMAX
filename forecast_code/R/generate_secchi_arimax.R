@@ -101,7 +101,7 @@ generate_secchi_arimax <- function(forecast_date,
 
   fit <- stlm(ts.train, s.window = "periodic", method = "arima", xreg = xreg_train)
   fc <- forecast(fit, h = nrow(future_predictors), newxreg = future_xreg)
-  print(fc)
+  # print(fc)
   z_80 <- qnorm(0.9)
   forecast_df <- tibble(
     date = future_predictors$datetime,
