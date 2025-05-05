@@ -8,7 +8,7 @@ source('forecast_code/R/generate_secchi_arimax.R')
 
 # ---- Generate the forecasts -----
 # default is to run a real-time forecast for today for fcre only
-forecast_date <- Sys.Date() - 1
+forecast_date <- Sys.Date() - 2
 site_list <- read_csv("https://raw.githubusercontent.com/LTREB-reservoirs/vera4cast/main/vera4cast_field_site_metadata.csv",
                       show_col_types = FALSE)
 
