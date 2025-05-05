@@ -12,7 +12,7 @@ generate_secchi_arimax <- function(forecast_date,
   fcre_combined <- get_secchi_airtemp_precip_data(site) |>
     dplyr::filter(datetime < forecast_date)
 
-  fcre_smoothed <- interpolate_secchi(fcre_combined, site)
+  fcre_smoothed <- interpolate_secchi(fcre_combined)
 
   # 4. ----- Build regressors -------------------------------------------
   ## (your lag‑23 rain + noon means code here, but using `historical_weather`
