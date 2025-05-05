@@ -51,7 +51,7 @@ if (dir.exists(save_here)) {
   write_csv(forecast, forecast_file)
 }
 
-# vera4castHelpers::forecast_output_validator(forecast_file)
+vera4castHelpers::forecast_output_validator(forecast_file)
 
 
 
