@@ -17,14 +17,15 @@ generate_secchi_arimax <- function(forecast_date,
   # 4. ----- Build regressors -------------------------------------------
   ## (your lag‑23 rain + noon means code here, but using `historical_weather`
   ##  and `future_weather` variables)
+  # print(fcre_smoothed)
   smoothed_data <- fcre_smoothed %>%
-    select(datetime, Secchi_m, Rain_mm_sum, AirTemp_C_mean) %>%
+    select(datetime, Secchi_m, Rain_mm_sum, AirTemp_C_mean, Secchi_m_smoothed) %>%
     mutate(
       Rain_lag23 = lag(Rain_mm_sum, 23),
       AirTemp_lag0 = AirTemp_C_mean
     ) %>%
-    filter(!is.na(Secchi_m), !is.na(Rain_lag23), !is.na(AirTemp_lag0))
-
+    filter(!is.na(Secchi_m_smoothed), !is.na(Rain_lag23), !is.na(AirTemp_lag0))
+  # print(smoothed_data)
 
  # get future data
   # start_forecast_date <- format(Sys.Date(), "%Y-%m-%d")
@@ -75,16 +76,21 @@ generate_secchi_arimax <- function(forecast_date,
     filter(!is.na(Rain_lag23), !is.na(AirTemp_C_mean))
 
   secchi_data <- fcre_smoothed %>%
-    select(datetime, Secchi_m, Rain_mm_sum, AirTemp_C_mean) %>%
+    select(datetime, Secchi_m, Rain_mm_sum, AirTemp_C_mean, Secchi_m_smoothed) %>%
     mutate(Rain_lag23 = lag(Rain_mm_sum, 23)) %>%
-    filter(!is.na(Secchi_m), !is.na(Rain_lag23), !is.na(AirTemp_C_mean))
+    filter(!is.na(Secchi_m_smoothed), !is.na(Rain_lag23), !is.na(AirTemp_C_mean))
+  # print(secchi_data)
+  # print(tail(secchi_data))
+  # na_counts_base <- colSums(is.na(secchi_data))
+  # print(na_counts_base)
 
   # Training/testing split (last 30 days for testing)
   n <- nrow(secchi_data)
   trainN <- n - 30
-  train <- secchi_data[1:trainN, ]
+  # train <- secchi_data[1:trainN, ]
+  train <- secchi_data
 
-  ts.train <- ts(train$Secchi_m, frequency = 365)
+  ts.train <- ts(train$Secchi_m_smoothed, frequency = 365)
   xreg_train <- as.matrix(train %>% select(Rain_lag23, AirTemp_C_mean))
 
   # ---- Step 7: Forecast future Secchi ----
@@ -92,7 +98,7 @@ generate_secchi_arimax <- function(forecast_date,
 
   fit <- stlm(ts.train, s.window = "periodic", method = "arima", xreg = xreg_train)
   fc <- forecast(fit, h = nrow(future_predictors), newxreg = future_xreg)
-
+  print(fc)
   z_80 <- qnorm(0.9)
   forecast_df <- tibble(
     date = future_predictors$datetime,
