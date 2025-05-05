@@ -1,8 +1,8 @@
 
 setwd(here::here())
 # load required packages
-# source('forecast_code/load_packages.R')
-source(here::here("forecast_code", "R", "load_packages.R"))
+source('forecast_code/load_packages.R')
+# source(here::here("forecast_code", "R", "load_packages.R"))
 
 
 # load the forecast generation function - include at least a forecast_date argument
