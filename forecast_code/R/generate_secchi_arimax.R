@@ -72,8 +72,11 @@ generate_secchi_arimax <- function(forecast_date,
     mutate(Rain_lag23 = lag(Rain_mm_sum, 23))
 
   future_predictors <- all_meteo %>%
-    filter(datetime %in% noon_future_regs$datetime) %>%
-    filter(!is.na(Rain_lag23), !is.na(AirTemp_C_mean))
+    mutate(date = as.Date(datetime)) %>%
+    filter(date %in% as.Date(noon_future_regs$datetime)) %>%
+    filter(!is.na(Rain_lag23), !is.na(AirTemp_C_mean)) %>%
+    select(-date)  # Optional: drop helper column
+
 
   secchi_data <- fcre_smoothed %>%
     select(datetime, Secchi_m, Rain_mm_sum, AirTemp_C_mean, Secchi_m_smoothed) %>%
