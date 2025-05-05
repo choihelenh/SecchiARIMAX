@@ -131,7 +131,7 @@ generate_secchi_arimax <- function(forecast_date,
   # 6. ----- Build long‑format output ------------------------------------
   #Set metadata for VERA4cast
   project_id <- "vera4cast"
-  model_id <- "stl_airtemp"
+  model_id <- "secchi_arimax"
   reference_datetime <- forecast_date
   duration <- "P1D"
   site_id <- "fcre"
