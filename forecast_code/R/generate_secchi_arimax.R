@@ -6,6 +6,8 @@ generate_secchi_arimax <- function(forecast_date,
                                    project_id = "vera4cast") {
 
   # --- 1. Pull & prepare historical ----------------------------------
+  source("get_secchi_airtemp_precip_data.R")
+  source("interpolate_secchi.R")
   fcre_combined <- get_secchi_airtemp_precip_data(site) |>
     dplyr::filter(datetime < forecast_date)
 
