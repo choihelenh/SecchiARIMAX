@@ -114,12 +114,12 @@ generate_secchi_arimax <- function(forecast_date,
   # ---- Step 8: Plot the forecast ----
   p <- ggplot(forecast_df, aes(x = date)) +
     geom_ribbon(aes(ymin = lower, ymax = upper), fill = "#a6bddb", alpha = 0.4) +
-    geom_line(aes(y = forecast), color = "#0570b0", linewidth = 1.2, linetype = "dashed") +
-    geom_point(aes(y = forecast), color = "#0570b0", linewidth = 2) +
+    geom_line(aes(y = forecast), color = "blue", size = 1.2, linetype = "dashed") +
+    geom_point(aes(y = forecast), color = "blue", size = 2) +
     labs(
-      title = "30-Day Forecast of Secchi Depth",
-      subtitle = "Model: Rain (lag 6) + Air Temp (lag 15)",
-      x = "Date", y = "Secchi Depth (m)"
+      title = "30-Day Forecast of Secchi Depth (FCRE)",
+      subtitle = "Model: Precipitation (lag 6) + Air Temp (lag 15)",
+      x = "Date (2025)", y = "Secchi Depth (m)"
     ) +
     theme_minimal(base_size = 14)
 
@@ -138,7 +138,7 @@ generate_secchi_arimax <- function(forecast_date,
   site_id <- "fcre"
   depth_m <- NA
   family <- "normal"
-  variable <- "secchi"
+  variable <- "Secchi_m_sample"
 
   #Build our long-format forecast for export
   vera4cast_df <- forecast_comparison %>%          # <‑‑ now defined
