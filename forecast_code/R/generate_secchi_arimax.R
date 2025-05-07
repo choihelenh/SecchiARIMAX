@@ -5,19 +5,22 @@ generate_secchi_arimax <- function(forecast_date,
                                    horizon   = 30,
                                    project_id = "vera4cast") {
 
-  # --- 1. Pull & prepare historical ----------------------------------
+  # ---- Step 1: Pull & prepare historical ----------------------------------
+
+  # Load helper scripts for data processing
   source(here::here("forecast_code", "R", "get_secchi_airtemp_precip_data.R"))
   source(here::here("forecast_code", "R", "interpolate_secchi.R"))
 
+  # Get combined Secchi and weather data for site, filtering for dates before the forecast
   fcre_combined <- get_secchi_airtemp_precip_data(site) |>
     dplyr::filter(datetime < forecast_date)
 
+  # Interpolate the missing Secchi values for modeling
   fcre_smoothed <- interpolate_secchi(fcre_combined)
 
-  # 4. ----- Build regressors -------------------------------------------
-  ## (your lag‑6 rain + lag-15 air temp+ noon means code here, but using `historical_weather`
-  ##  and `future_weather` variables)
-  # print(fcre_smoothed)
+  # ---- Step 2: Build training regressors -------------------------------------------
+
+  # Select the relevant variables and compute lagged predictors
   smoothed_data <- fcre_smoothed %>%
     select(datetime, Secchi_m, Rain_mm_sum, AirTemp_C_mean, Secchi_m_smoothed) %>%
     mutate(
@@ -25,15 +28,16 @@ generate_secchi_arimax <- function(forecast_date,
       AirTemp_lag15 = lag(AirTemp_C_mean, 15)
     ) %>%
     filter(!is.na(Secchi_m_smoothed), !is.na(Rain_lag6), !is.na(AirTemp_lag15))
-  # print(smoothed_data)
 
- # get future data
+  # ---- Step 3: Get future weather forecasts from NOAA ----
   # start_forecast_date <- format(Sys.Date(), "%Y-%m-%d")
   forecast_date <- format(forecast_date)
   weather <- vera4castHelpers::noaa_stage2(start_date = forecast_date)
   df_future <- weather %>% filter(site_id == "fcre") %>% collect()
 
-  # ---- Step 4: Aggregate noon forecasts ----
+  # ---- Step 4: Aggregate forecasts to noon values per day ----
+
+  # Function to aggregate values at noon each day using the summarize function
   agg_noon <- function(.data, value_col, fun = mean) {
     .data %>%
       filter(hour(datetime) == 12, minute(datetime) == 0) %>%
@@ -42,13 +46,14 @@ generate_secchi_arimax <- function(forecast_date,
       summarise(value = fun({{ value_col }}, na.rm = TRUE), .groups = "drop")
   }
 
+  # Convert the air temperature from Kelvin to Celcius, then aggregate it to daily noon
   airtemp_noon <- df_future %>%
     filter(variable == "air_temperature") %>%
     mutate(pred_C = prediction - 273.15) %>%
     agg_noon(pred_C) %>%
     rename(AirTemp_C_mean = value)
 
-
+  # Convert the precipitation flux to mm/day, select noon, then aggregate
   precip_noon <- df_future %>%
     filter(variable == "precipitation_flux",
            hour(datetime) == 12, minute(datetime) == 0) %>%
@@ -56,15 +61,17 @@ generate_secchi_arimax <- function(forecast_date,
            flux = prediction,
            precip_mm = flux * 86400) %>%
     group_by(date) %>%
-    slice(1) %>%
+    slice(1) %>% # Only take one record per day at noon
     ungroup() %>%
     select(date, precip_mm) %>%
     rename(Rain_mm_sum = precip_mm)
 
+  # Join future regressors (air temp and rain) into a single dataframe
   noon_future_regs <- airtemp_noon %>%
     left_join(precip_noon, by = "date") %>%
     rename(datetime = date)
 
+  # Combine historical and future weather in order to compute lag features
   all_meteo <- fcre_smoothed %>%
     select(datetime, Rain_mm_sum, AirTemp_C_mean) %>%
     bind_rows(noon_future_regs) %>%
@@ -72,12 +79,13 @@ generate_secchi_arimax <- function(forecast_date,
     mutate(Rain_lag6 = lag(Rain_mm_sum, 6))  %>%
     mutate(AirTemp_lag15 = lag(AirTemp_C_mean, 15))
 
+  # Subset to future dates with non-missing lagged predictors
   future_predictors <- all_meteo %>%
     mutate(date = as.Date(datetime)) %>%
     filter(date %in% as.Date(noon_future_regs$datetime)) %>%
     filter(!is.na(Rain_lag6), !is.na(AirTemp_lag15))
 
-
+  # Final dataset used for training our model
   secchi_data <- fcre_smoothed %>%
     select(datetime, Secchi_m, Rain_mm_sum, AirTemp_C_mean, Secchi_m_smoothed) %>%
     mutate(Rain_lag6 = lag(Rain_mm_sum, 6)) %>%
@@ -88,21 +96,28 @@ generate_secchi_arimax <- function(forecast_date,
   # na_counts_base <- colSums(is.na(secchi_data))
   # print(na_counts_base)
 
+  # ---- Step 5: Forecast future Secchi ----
   # Training/testing split (last 30 days for testing)
   n <- nrow(secchi_data)
   trainN <- n - 30
   # train <- secchi_data[1:trainN, ]
   train <- secchi_data
 
+  # Create a seasonal time series for Secchi depth
   ts.train <- ts(train$Secchi_m_smoothed, frequency = 365)
   xreg_train <- as.matrix(train %>% select(Rain_lag6, AirTemp_lag15))
 
-  # ---- Step 7: Forecast future Secchi ----
+  # Define a future regressor matrix
   future_xreg <- as.matrix(future_predictors %>% select(Rain_lag6, AirTemp_lag15))
 
+  # Fit STL + ARIMA model with external regressors
   fit <- stlm(ts.train, s.window = "periodic", method = "arima", xreg = xreg_train)
+
+  # Forecast using future regressors
   fc <- forecast(fit, h = nrow(future_predictors), newxreg = future_xreg)
   # print(fc)
+
+  # Create an output dataframe with point forecast and confidence intervals
   z_80 <- qnorm(0.9)
   forecast_df <- tibble(
     date = future_predictors$datetime,
@@ -111,7 +126,7 @@ generate_secchi_arimax <- function(forecast_date,
     upper = as.numeric(fc$upper[, 1])
   )
 
-  # ---- Step 8: Plot the forecast ----
+  # ---- Step 6: Plot the forecast ----
   p <- ggplot(forecast_df, aes(x = date)) +
     geom_ribbon(aes(ymin = lower, ymax = upper), fill = "#a6bddb", alpha = 0.4) +
     geom_line(aes(y = forecast), color = "blue", size = 1.2, linetype = "dashed") +
@@ -123,13 +138,17 @@ generate_secchi_arimax <- function(forecast_date,
     ) +
     theme_minimal(base_size = 14)
 
+  # Estimate the standard deviation from an 80% interval width
   sd_est <- (forecast_df$upper - forecast_df$lower) / (2 * z_80)
+
+  # Reformat for export with the μ and σ value for each day
   forecast_comparison <- forecast_df %>%
     transmute(datetime = date,          # keep the time stamp
               forecast = forecast,      # point forecast  (μ)
               sd = sd_est)              # std‑dev estimate (σ)
 
   # 6. ----- Build long‑format output ------------------------------------
+
   #Set metadata for VERA4cast
   project_id <- "vera4cast"
   model_id <- "secchi_arimax"
@@ -161,7 +180,7 @@ generate_secchi_arimax <- function(forecast_date,
     select(project_id, model_id, datetime, reference_datetime,
            duration, site_id, depth_m, family, parameter, variable, prediction)
 
-  # return(vera4cast_df)
+  # Return both forecast data and the plot
   return(list(forecast = vera4cast_df, plot = p))
 
 }
