@@ -1,5 +1,7 @@
 # Tutorial
-
+To create a forecast, run SecchiARIMAX --> run_forecast.R. This will run all the necessary
+files, which include load_packages.R, get_secchi_airtemp_precip_data.R, interpolate_secchi.R,
+and generate_secchi_arimax.R.
 
 # Disclaimer of Limitations
 
